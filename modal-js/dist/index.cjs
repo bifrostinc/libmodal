@@ -40901,7 +40901,7 @@ var Sandbox2 = class _Sandbox {
       }
       if (resp.taskResult) {
         throw new Error(
-          `Sandbox ${this.sandboxId} has already completed with result: ${resp.taskResult}`
+          `Sandbox ${this.sandboxId} has already completed with result: ${JSON.stringify(resp.taskResult)}`
         );
       }
       this.#taskId = resp.taskId;
