@@ -61,6 +61,9 @@ export type SandboxCreateOptions = {
 
   /** List of ports to tunnel into the sandbox without encryption. */
   unencryptedPorts?: number[];
+
+  /** Experimental options for the sandbox. */
+  experimentalOptions?: Record<string, boolean>;
 };
 
 /** Represents a deployed Modal App. */
@@ -159,6 +162,7 @@ export class App {
         volumeMounts,
         secretIds,
         openPorts: openPorts.length > 0 ? { ports: openPorts } : undefined,
+        experimentalOptions: options.experimentalOptions,
       },
     });
 
