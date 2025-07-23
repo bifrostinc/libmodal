@@ -1,4 +1,5 @@
 node_modules/
-dist/
+# Allowing dist so we can use this fork directly
+#dist/
 proto/
 docs/
