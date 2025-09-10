@@ -103,6 +103,9 @@ export type SandboxCreateOptions = {
 
   /** Optional name for the Sandbox. Unique within an App. */
   name?: string;
+
+  /** Experimental options for the sandbox. */
+  experimentalOptions?: Record<string, boolean>;
 };
 
 /**
@@ -294,6 +297,7 @@ export class App {
           verbose: options.verbose ?? false,
           proxyId: options.proxy?.proxyId,
           name: options.name,
+          experimentalOptions: options.experimentalOptions,
         },
       });
     } catch (err) {
