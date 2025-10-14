@@ -7,6 +7,7 @@ import {
   PTYInfo_PTYType,
   ContainerExecRequest,
   SandboxTagsGetResponse,
+  SandboxRestoreRequest_SandboxNameOverrideType,
 } from "../proto/modal_proto/api";
 import { client, isRetryableGrpc } from "./client";
 import { environmentName } from "./config";
@@ -23,8 +24,14 @@ import {
   toModalWriteStream,
 } from "./streams";
 import { type Secret, mergeEnvAndSecrets } from "./secret";
-import { InvalidError, NotFoundError, SandboxTimeoutError } from "./errors";
+import {
+  AlreadyExistsError,
+  InvalidError,
+  NotFoundError,
+  SandboxTimeoutError,
+} from "./errors";
 import { Image } from "./image";
+import { SandboxSnapshot } from "./sandbox_snapshot";
 
 /**
  * Stdin is always present, but this option allow you to drop stdout or stderr
@@ -69,6 +76,15 @@ export type ExecOptions = {
   secrets?: Secret[];
   /** Enable a PTY for the command. */
   pty?: boolean;
+};
+
+type SandboxConstructorOptions = {
+  memorySnapshotsEnabled?: boolean;
+};
+
+type SandboxRestoreOptions = {
+  /** Optional sandbox name override. Use null to clear name. */
+  name?: string | null;
 };
 
 /** A port forwarded from within a running Modal Sandbox. */
@@ -154,10 +170,15 @@ export class Sandbox {
 
   #taskId: string | undefined;
   #tunnels: Record<number, Tunnel> | undefined;
+  #memorySnapshotsEnabled: boolean;
 
   /** @ignore */
-  constructor(sandboxId: string) {
+  constructor(
+    sandboxId: string,
+    options: SandboxConstructorOptions = {},
+  ) {
     this.sandboxId = sandboxId;
+    this.#memorySnapshotsEnabled = options.memorySnapshotsEnabled ?? false;
 
     this.stdin = toModalWriteStream(inputStreamSb(sandboxId));
     this.stdout = toModalReadStream(
@@ -259,6 +280,48 @@ export class Sandbox {
         );
       throw err;
     }
+  }
+
+  static async experimentalFromSnapshot(
+    snapshot: SandboxSnapshot,
+    options: SandboxRestoreOptions = {},
+  ): Promise<Sandbox> {
+    let sandboxNameOverrideType =
+      SandboxRestoreRequest_SandboxNameOverrideType.SANDBOX_NAME_OVERRIDE_TYPE_UNSPECIFIED;
+    let sandboxNameOverride = "";
+
+    if (options.name === null) {
+      sandboxNameOverrideType =
+        SandboxRestoreRequest_SandboxNameOverrideType.SANDBOX_NAME_OVERRIDE_TYPE_NONE;
+    } else if (options.name) {
+      sandboxNameOverrideType =
+        SandboxRestoreRequest_SandboxNameOverrideType.SANDBOX_NAME_OVERRIDE_TYPE_STRING;
+      sandboxNameOverride = options.name;
+    }
+
+    let restoreResp;
+    try {
+      restoreResp = await client.sandboxRestore({
+        snapshotId: snapshot.snapshotId,
+        sandboxNameOverride,
+        sandboxNameOverrideType,
+      });
+    } catch (err) {
+      if (err instanceof ClientError && err.code === Status.ALREADY_EXISTS) {
+        throw new AlreadyExistsError(err.details || err.message);
+      }
+      throw err;
+    }
+
+    await client.sandboxGetTaskId({
+      sandboxId: restoreResp.sandboxId,
+      waitUntilReady: true,
+      timeout: 55,
+    });
+
+    return new Sandbox(restoreResp.sandboxId, {
+      memorySnapshotsEnabled: true,
+    });
   }
 
   /**
@@ -411,6 +474,42 @@ export class Sandbox {
     }
 
     return new Image(resp.imageId, "");
+  }
+
+  async experimentalSnapshot(): Promise<SandboxSnapshot> {
+    if (!this.#memorySnapshotsEnabled) {
+      throw new InvalidError(
+        "Memory snapshots are not supported for this sandbox. Enable them by setting `_experimentalEnableSnapshot: true` when creating the sandbox.",
+      );
+    }
+
+    await this.#getTaskId();
+
+    const snapshotResp = await client.sandboxSnapshot({
+      sandboxId: this.sandboxId,
+    });
+
+    const snapshotId = snapshotResp.snapshotId;
+    if (!snapshotId) {
+      throw new Error("Sandbox snapshot response missing `snapshotId`");
+    }
+
+    const waitResp = await client.sandboxSnapshotWait({
+      snapshotId,
+      timeout: 55,
+    });
+    const result = waitResp.result;
+    if (
+      result &&
+      result.status !==
+        GenericResult_GenericStatus.GENERIC_STATUS_SUCCESS &&
+      result.status !==
+        GenericResult_GenericStatus.GENERIC_STATUS_UNSPECIFIED
+    ) {
+      throw new Error(result.exception || "Sandbox snapshot failed");
+    }
+
+    return new SandboxSnapshot(snapshotId);
   }
 
   /**

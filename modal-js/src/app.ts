@@ -111,6 +111,9 @@ export type SandboxCreateOptions = {
 
   /** Optional name for the Sandbox. Unique within an App. */
   name?: string;
+
+  /** Enable memory snapshot support (experimental). */
+  _experimentalEnableSnapshot?: boolean;
 };
 
 /**
@@ -275,6 +278,7 @@ export async function buildSandboxCreateRequestProto(
       verbose: options.verbose ?? false,
       proxyId: options.proxy?.proxyId,
       name: options.name,
+      enableSnapshot: options._experimentalEnableSnapshot ?? false,
     },
   });
 }
@@ -329,7 +333,12 @@ export class App {
       throw err;
     }
 
-    return new Sandbox(createResp.sandboxId);
+    const memorySnapshotsEnabled =
+      options._experimentalEnableSnapshot ?? false;
+
+    return new Sandbox(createResp.sandboxId, {
+      memorySnapshotsEnabled,
+    });
   }
 
   /**
