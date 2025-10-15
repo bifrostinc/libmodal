@@ -236,7 +236,7 @@ export class Sandbox {
    *
    * @returns Sandbox with ID
    */
-  static async fromId(sandboxId: string): Promise<Sandbox> {
+  static async fromId(sandboxId: string, options?: SandboxConstructorOptions): Promise<Sandbox> {
     try {
       await client.sandboxWait({
         sandboxId,
@@ -248,7 +248,7 @@ export class Sandbox {
       throw err;
     }
 
-    return new Sandbox(sandboxId);
+    return new Sandbox(sandboxId, options);
   }
 
   /** Get a running Sandbox by name from a deployed App.
@@ -265,6 +265,7 @@ export class Sandbox {
     appName: string,
     name: string,
     environment?: string,
+    options?: SandboxConstructorOptions,
   ): Promise<Sandbox> {
     try {
       const resp = await client.sandboxGetFromName({
@@ -272,7 +273,7 @@ export class Sandbox {
         appName,
         environmentName: environmentName(environment),
       });
-      return new Sandbox(resp.sandboxId);
+      return new Sandbox(resp.sandboxId, options);
     } catch (err) {
       if (err instanceof ClientError && err.code === Status.NOT_FOUND)
         throw new NotFoundError(

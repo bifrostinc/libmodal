@@ -43004,7 +43004,7 @@ var Sandbox2 = class _Sandbox {
    *
    * @returns Sandbox with ID
    */
-  static async fromId(sandboxId) {
+  static async fromId(sandboxId, options) {
     try {
       await client.sandboxWait({
         sandboxId,
@@ -43015,7 +43015,7 @@ var Sandbox2 = class _Sandbox {
         throw new NotFoundError(`Sandbox with id: '${sandboxId}' not found`);
       throw err;
     }
-    return new _Sandbox(sandboxId);
+    return new _Sandbox(sandboxId, options);
   }
   /** Get a running Sandbox by name from a deployed App.
    *
@@ -43027,14 +43027,14 @@ var Sandbox2 = class _Sandbox {
    * @param environment - Optional override for the environment
    * @returns Promise that resolves to a Sandbox
    */
-  static async fromName(appName, name, environment) {
+  static async fromName(appName, name, environment, options) {
     try {
       const resp = await client.sandboxGetFromName({
         sandboxName: name,
         appName,
         environmentName: environmentName(environment)
       });
-      return new _Sandbox(resp.sandboxId);
+      return new _Sandbox(resp.sandboxId, options);
     } catch (err) {
       if (err instanceof ClientError4 && err.code === Status4.NOT_FOUND)
         throw new NotFoundError(

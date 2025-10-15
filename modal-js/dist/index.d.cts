@@ -339,7 +339,7 @@ declare class Sandbox {
      *
      * @returns Sandbox with ID
      */
-    static fromId(sandboxId: string): Promise<Sandbox>;
+    static fromId(sandboxId: string, options?: SandboxConstructorOptions): Promise<Sandbox>;
     /** Get a running Sandbox by name from a deployed App.
      *
      * Raises a NotFoundError if no running Sandbox is found with the given name.
@@ -350,7 +350,7 @@ declare class Sandbox {
      * @param environment - Optional override for the environment
      * @returns Promise that resolves to a Sandbox
      */
-    static fromName(appName: string, name: string, environment?: string): Promise<Sandbox>;
+    static fromName(appName: string, name: string, environment?: string, options?: SandboxConstructorOptions): Promise<Sandbox>;
     static experimentalFromSnapshot(snapshot: SandboxSnapshot, options?: SandboxRestoreOptions): Promise<Sandbox>;
     /**
      * Open a file in the Sandbox filesystem.
