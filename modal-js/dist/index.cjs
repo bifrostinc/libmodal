@@ -43670,6 +43670,7 @@ async function buildSandboxCreateRequestProto(appId, imageId, options = {}) {
       verbose: options.verbose ?? false,
       proxyId: options.proxy?.proxyId,
       name: options.name,
+      experimentalOptions: options.experimentalOptions,
       enableSnapshot: options.experimentalEnableSnapshot ?? false
     }
   });

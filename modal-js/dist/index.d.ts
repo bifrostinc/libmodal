@@ -536,6 +536,8 @@ type SandboxCreateOptions = {
     proxy?: Proxy;
     /** Optional name for the Sandbox. Unique within an App. */
     name?: string;
+    /** Experimental options for the sandbox. */
+    experimentalOptions?: Record<string, boolean>;
     /** Enable memory snapshot support (experimental). */
     experimentalEnableSnapshot?: boolean;
 };
