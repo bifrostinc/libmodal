@@ -479,7 +479,7 @@ export class Sandbox {
   async experimentalSnapshot(): Promise<SandboxSnapshot> {
     if (!this.#memorySnapshotsEnabled) {
       throw new InvalidError(
-        "Memory snapshots are not supported for this sandbox. Enable them by setting `_experimentalEnableSnapshot: true` when creating the sandbox.",
+        "Memory snapshots are not supported for this sandbox. Enable them by setting `experimentalEnableSnapshot: true` when creating the sandbox.",
       );
     }
 
