@@ -243,9 +243,9 @@ export async function buildSandboxCreateRequestProto(
     };
   }
 
-  const schedulerPlacement = SchedulerPlacement.create({
-    regions: options.regions ?? [],
-  });
+  const schedulerPlacement = options.regions ? SchedulerPlacement.create({
+    regions: options.regions,
+  }) : undefined;
 
   let ptyInfo: PTYInfo | undefined;
   if (options.pty) {

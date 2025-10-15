@@ -43637,9 +43637,9 @@ async function buildSandboxCreateRequestProto(appId, imageId, options = {}) {
       allowedCidrs: []
     };
   }
-  const schedulerPlacement = SchedulerPlacement.create({
-    regions: options.regions ?? []
-  });
+  const schedulerPlacement = options.regions ? SchedulerPlacement.create({
+    regions: options.regions
+  }) : void 0;
   let ptyInfo;
   if (options.pty) {
     ptyInfo = defaultSandboxPTYInfo();
