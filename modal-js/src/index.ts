@@ -56,6 +56,7 @@ export type {
   SandboxListOptions,
 } from "./sandbox";
 export { ContainerProcess, Sandbox } from "./sandbox";
+export { SandboxSnapshot } from "./sandbox_snapshot";
 export type { ModalReadStream, ModalWriteStream } from "./streams";
 export { Secret, type SecretFromNameOptions } from "./secret";
 export { SandboxFile, type SandboxFileMode } from "./sandbox_filesystem";
