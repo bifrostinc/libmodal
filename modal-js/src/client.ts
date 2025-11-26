@@ -19,6 +19,7 @@ import { ImageService } from "./image";
 import { ProxyService } from "./proxy";
 import { QueueService } from "./queue";
 import { SandboxService } from "./sandbox";
+import { SandboxSnapshotService } from "./sandbox_snapshot";
 import { SecretService } from "./secret";
 import { VolumeService } from "./volume";
 
@@ -85,6 +86,7 @@ export class ModalClient {
   readonly proxies: ProxyService;
   readonly queues: QueueService;
   readonly sandboxes: SandboxService;
+  readonly sandboxSnapshots: SandboxSnapshotService;
   readonly secrets: SecretService;
   readonly volumes: VolumeService;
 
@@ -133,6 +135,7 @@ export class ModalClient {
     this.proxies = new ProxyService(this);
     this.queues = new QueueService(this);
     this.sandboxes = new SandboxService(this);
+    this.sandboxSnapshots = new SandboxSnapshotService(this);
     this.secrets = new SecretService(this);
     this.volumes = new VolumeService(this);
   }

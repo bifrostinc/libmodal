@@ -61,14 +61,19 @@ export {
 export { Retries } from "./retries";
 export type {
   SandboxExecParams,
+  SandboxFromIdParams,
   SandboxFromNameParams,
+  SandboxRestoreParams,
   StdioBehavior,
   StreamMode,
   Tunnel,
   SandboxListParams,
   SandboxCreateParams,
+  CreateConnectTokenParams,
+  ConnectToken,
 } from "./sandbox";
 export { ContainerProcess, Sandbox, SandboxService } from "./sandbox";
+export { SandboxSnapshot, SandboxSnapshotService } from "./sandbox_snapshot";
 export type { ModalReadStream, ModalWriteStream } from "./streams";
 export {
   Secret,

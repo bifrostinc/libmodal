@@ -17,7 +17,9 @@ import {
   PortSpec,
   Resources,
   PortSpecs,
+  SandboxRestoreRequest_SandboxNameOverrideType,
 } from "../proto/modal_proto/api";
+import { SandboxSnapshot } from "./sandbox_snapshot";
 import {
   getDefaultClient,
   type ModalClient,
@@ -142,6 +144,12 @@ export type SandboxCreateParams = {
 
   /** Optional name for the Sandbox. Unique within an App. */
   name?: string;
+
+  /** Experimental options for the sandbox. */
+  experimentalOptions?: Record<string, boolean>;
+
+  /** Enable memory snapshot support (experimental). */
+  experimentalEnableSnapshot?: boolean;
 };
 
 export async function buildSandboxCreateRequestProto(
@@ -334,6 +342,8 @@ export async function buildSandboxCreateRequestProto(
       verbose: params.verbose ?? false,
       proxyId: params.proxy?.proxyId,
       name: params.name,
+      experimentalOptions: params.experimentalOptions,
+      enableSnapshot: params.experimentalEnableSnapshot ?? false,
     },
   });
 }
@@ -394,14 +404,20 @@ export class SandboxService {
       "sandbox_id",
       createResp.sandboxId,
     );
-    return new Sandbox(this.#client, createResp.sandboxId);
+    const memorySnapshotsEnabled = params.experimentalEnableSnapshot ?? false;
+    return new Sandbox(this.#client, createResp.sandboxId, {
+      memorySnapshotsEnabled,
+    });
   }
 
   /** Returns a running {@link Sandbox} object from an ID.
    *
    * @returns Sandbox with ID
    */
-  async fromId(sandboxId: string): Promise<Sandbox> {
+  async fromId(
+    sandboxId: string,
+    params?: SandboxFromIdParams,
+  ): Promise<Sandbox> {
     try {
       await this.#client.cpClient.sandboxWait({
         sandboxId,
@@ -413,7 +429,9 @@ export class SandboxService {
       throw err;
     }
 
-    return new Sandbox(this.#client, sandboxId);
+    return new Sandbox(this.#client, sandboxId, {
+      memorySnapshotsEnabled: params?.memorySnapshotsEnabled,
+    });
   }
 
   /** Get a running {@link Sandbox} by name from a deployed {@link App}.
@@ -437,7 +455,9 @@ export class SandboxService {
         appName,
         environmentName: this.#client.environmentName(params?.environment),
       });
-      return new Sandbox(this.#client, resp.sandboxId);
+      return new Sandbox(this.#client, resp.sandboxId, {
+        memorySnapshotsEnabled: params?.memorySnapshotsEnabled,
+      });
     } catch (err) {
       if (err instanceof ClientError && err.code === Status.NOT_FOUND)
         throw new NotFoundError(
@@ -445,6 +465,55 @@ export class SandboxService {
         );
       throw err;
     }
+  }
+
+  /**
+   * Restore a {@link Sandbox} from a {@link SandboxSnapshot} (experimental).
+   *
+   * @param snapshot - The snapshot to restore from
+   * @param params - Optional parameters for restoring the Sandbox
+   * @returns Promise that resolves to a Sandbox
+   */
+  async experimentalFromSnapshot(
+    snapshot: SandboxSnapshot,
+    params: SandboxRestoreParams = {},
+  ): Promise<Sandbox> {
+    let sandboxNameOverrideType =
+      SandboxRestoreRequest_SandboxNameOverrideType.SANDBOX_NAME_OVERRIDE_TYPE_UNSPECIFIED;
+    let sandboxNameOverride = "";
+
+    if (params.name === null) {
+      sandboxNameOverrideType =
+        SandboxRestoreRequest_SandboxNameOverrideType.SANDBOX_NAME_OVERRIDE_TYPE_NONE;
+    } else if (params.name) {
+      sandboxNameOverrideType =
+        SandboxRestoreRequest_SandboxNameOverrideType.SANDBOX_NAME_OVERRIDE_TYPE_STRING;
+      sandboxNameOverride = params.name;
+    }
+
+    let restoreResp;
+    try {
+      restoreResp = await this.#client.cpClient.sandboxRestore({
+        snapshotId: snapshot.snapshotId,
+        sandboxNameOverride,
+        sandboxNameOverrideType,
+      });
+    } catch (err) {
+      if (err instanceof ClientError && err.code === Status.ALREADY_EXISTS) {
+        throw new AlreadyExistsError(err.details || err.message);
+      }
+      throw err;
+    }
+
+    await this.#client.cpClient.sandboxGetTaskId({
+      sandboxId: restoreResp.sandboxId,
+      waitUntilReady: true,
+      timeout: 55,
+    });
+
+    return new Sandbox(this.#client, restoreResp.sandboxId, {
+      memorySnapshotsEnabled: true,
+    });
   }
 
   /**
@@ -502,9 +571,47 @@ export type SandboxListParams = {
   environment?: string;
 };
 
+/** Optional parameters for {@link SandboxService#fromId client.sandboxes.fromId()}. */
+export type SandboxFromIdParams = {
+  /** Whether memory snapshots are enabled for this Sandbox (experimental). */
+  memorySnapshotsEnabled?: boolean;
+};
+
 /** Optional parameters for {@link SandboxService#fromName client.sandboxes.fromName()}. */
 export type SandboxFromNameParams = {
   environment?: string;
+  /** Whether memory snapshots are enabled for this Sandbox (experimental). */
+  memorySnapshotsEnabled?: boolean;
+};
+
+/** Optional parameters for {@link SandboxService#experimentalFromSnapshot client.sandboxes.experimentalFromSnapshot()}. */
+export type SandboxRestoreParams = {
+  /** Optional sandbox name override. Use null to clear name. */
+  name?: string | null;
+};
+
+/** Optional parameters for {@link Sandbox#createConnectToken Sandbox.createConnectToken()}. */
+export type CreateConnectTokenParams = {
+  /**
+   * Optional user metadata to attach to the token. Must be JSON-serializable.
+   * When a request arrives with a valid token, the service receives an
+   * `X-Verified-User-Data` header with this data as a JSON-serialized string.
+   * Serialized metadata cannot exceed 512 characters.
+   */
+  userMetadata?: Record<string, unknown>;
+};
+
+/**
+ * A connect token for a Sandbox.
+ *
+ * Connect tokens enable authenticated access to services running inside the Sandbox
+ * through HTTP and WebSocket requests.
+ */
+export type ConnectToken = {
+  /** The URL to connect to the Sandbox service. */
+  url: string;
+  /** The authentication token. */
+  token: string;
 };
 
 /** Optional parameters for {@link Sandbox#exec Sandbox.exec()}. */
@@ -599,6 +706,10 @@ export async function buildContainerExecRequestProto(
   });
 }
 
+type SandboxConstructorOptions = {
+  memorySnapshotsEnabled?: boolean;
+};
+
 /** Sandboxes are secure, isolated containers in Modal that boot in seconds. */
 export class Sandbox {
   readonly #client: ModalClient;
@@ -609,11 +720,17 @@ export class Sandbox {
 
   #taskId: string | undefined;
   #tunnels: Record<number, Tunnel> | undefined;
+  #memorySnapshotsEnabled: boolean;
 
   /** @ignore */
-  constructor(client: ModalClient, sandboxId: string) {
+  constructor(
+    client: ModalClient,
+    sandboxId: string,
+    options: SandboxConstructorOptions = {},
+  ) {
     this.#client = client;
     this.sandboxId = sandboxId;
+    this.#memorySnapshotsEnabled = options.memorySnapshotsEnabled ?? false;
 
     this.stdin = toModalWriteStream(inputStreamSb(client.cpClient, sandboxId));
     this.stdout = toModalReadStream(
@@ -875,6 +992,47 @@ export class Sandbox {
   }
 
   /**
+   * Take a memory snapshot of the Sandbox (experimental).
+   *
+   * Returns a {@link SandboxSnapshot} object which can be used to restore a new Sandbox.
+   *
+   * @returns Promise that resolves to a {@link SandboxSnapshot}
+   */
+  async experimentalSnapshot(): Promise<SandboxSnapshot> {
+    if (!this.#memorySnapshotsEnabled) {
+      throw new InvalidError(
+        "Memory snapshots are not supported for this sandbox. Enable them by setting `experimentalEnableSnapshot: true` when creating the sandbox.",
+      );
+    }
+
+    await this.#getTaskId();
+
+    const snapshotResp = await this.#client.cpClient.sandboxSnapshot({
+      sandboxId: this.sandboxId,
+    });
+
+    const snapshotId = snapshotResp.snapshotId;
+    if (!snapshotId) {
+      throw new Error("Sandbox snapshot response missing `snapshotId`");
+    }
+
+    const waitResp = await this.#client.cpClient.sandboxSnapshotWait({
+      snapshotId,
+      timeout: 55,
+    });
+    const result = waitResp.result;
+    if (
+      result &&
+      result.status !== GenericResult_GenericStatus.GENERIC_STATUS_SUCCESS &&
+      result.status !== GenericResult_GenericStatus.GENERIC_STATUS_UNSPECIFIED
+    ) {
+      throw new Error(result.exception || "Sandbox snapshot failed");
+    }
+
+    return new SandboxSnapshot(this.#client, snapshotId);
+  }
+
+  /**
    * Check if the Sandbox has finished running.
    *
    * Returns `null` if the Sandbox is still running, else returns the exit code.
@@ -886,6 +1044,38 @@ export class Sandbox {
     });
 
     return Sandbox.#getReturnCode(resp.result);
+  }
+
+  /**
+   * Create a connect token for this Sandbox.
+   *
+   * Connect tokens enable authenticated access to services running inside the Sandbox
+   * through HTTP and WebSocket requests. The token can be transmitted via:
+   * - Authorization header: `Authorization: Bearer {token}`
+   * - Query parameter: `_modal_connect_token` in the URL
+   * - Cookie: `_modal_connect_token` as a cookie
+   *
+   * The service inside the container must listen on port 8080.
+   *
+   * @param params - Optional parameters for the connect token
+   * @returns Promise that resolves to a {@link ConnectToken}
+   */
+  async createConnectToken(
+    params: CreateConnectTokenParams = {},
+  ): Promise<ConnectToken> {
+    const userMetadata = params.userMetadata
+      ? JSON.stringify(params.userMetadata)
+      : "";
+
+    const resp = await this.#client.cpClient.sandboxCreateConnectToken({
+      sandboxId: this.sandboxId,
+      userMetadata,
+    });
+
+    return {
+      url: resp.url,
+      token: resp.token,
+    };
   }
 
   /**
