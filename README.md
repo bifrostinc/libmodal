@@ -12,6 +12,15 @@ For more details, documentation and installation instructions, see the README fo
 - **[JavaScript / TypeScript](./modal-js/README.md)**
 - **[Go](./modal-go/README.md)**
 
+## Contributing
+
+Both SDKs run integration tests against a real Modal workspace, so you'll need Modal API credentials (`MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`) exported in your environment before running the test suites locally.
+
+- **JavaScript / TypeScript**: from `modal-js/`, run `npm ci` once, then `npm test`.
+- **Go**: from `modal-go/`, run `go test ./...`.
+
+See the [CI workflow](./.github/workflows/ci.yaml) for the exact commands and setup used on pull requests.
+
 ## Support
 
 For usage questions and other support, please reach out on the [Modal Community Slack](https://modal.com/slack).
