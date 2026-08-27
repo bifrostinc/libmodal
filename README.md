@@ -32,6 +32,16 @@ cd modal-js && npm install && npm run build && npm test
 cd modal-go && go test -v -count=1 -parallel=10 ./...
 ```
 
+Lint the code the same way CI does:
+
+```bash
+# JavaScript / TypeScript
+cd modal-js && npm run lint
+
+# Go
+cd modal-go && golangci-lint run
+```
+
 ## Support
 
 For usage questions and other support, please reach out on the [Modal Community Slack](https://modal.com/slack).
