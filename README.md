@@ -12,6 +12,26 @@ For more details, documentation and installation instructions, see the README fo
 - **[JavaScript / TypeScript](./modal-js/README.md)**
 - **[Go](./modal-go/README.md)**
 
+## Contributing
+
+Clone the repo with submodules, then see [DEVELOPING.md](./DEVELOPING.md) for setup and development details.
+
+Tests run against Modal cloud infrastructure, so you need to be authenticated with Modal, and the test apps and secrets from [`test-support/`](./test-support) must be deployed first:
+
+```bash
+test-support/setup.sh
+```
+
+Then run the tests for each SDK:
+
+```bash
+# JavaScript / TypeScript
+cd modal-js && npm install && npm run build && npm test
+
+# Go
+cd modal-go && go test -v -count=1 -parallel=10 ./...
+```
+
 ## Support
 
 For usage questions and other support, please reach out on the [Modal Community Slack](https://modal.com/slack).
